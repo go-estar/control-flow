@@ -7,41 +7,37 @@ import (
 	"time"
 )
 
-type A string
+type A struct {
+	V string
+}
 
-func ParallelWithResult1() *Result[A] {
+func ParallelWithResult1() (*A, error) {
 	time.Sleep(time.Second * 1)
-	return &Result[A]{
-		Val: "ParallelWithResult1 executed successfully",
-		Err: nil,
-	}
+	return &A{
+		V: "ParallelWithResult1 executed successfully",
+	}, nil
 }
 
-func ParallelWithResult2() *Result[A] {
+func ParallelWithResult2() (*A, error) {
 	time.Sleep(time.Second * 2)
-	return &Result[A]{
-		Val: "ParallelWithResult2 executed successfully",
-		Err: errors.New("Error occurred in ParallelWithResult2"),
-	}
+	return nil, errors.New("Error occurred in ParallelWithResult2")
 }
 
-func ParallelWithResult3() *Result[A] {
+func ParallelWithResult3() (*A, error) {
 	time.Sleep(time.Second * 1)
 	panic("panic 3")
-	return &Result[A]{
-		Val: "ParallelWithResult3 executed successfully",
-		Err: nil,
-	}
+	return &A{
+		V: "ParallelWithResult3 executed successfully",
+	}, nil
 }
 
 func TestParallelWithResult(t *testing.T) {
-	results := parallelWithResult(ParallelWithResult1, ParallelWithResult2, ParallelWithResult3)
-	for i, result := range results {
-		if result.Err != nil {
-			fmt.Printf("Function %d failed with error: %v\n", i+1, result.Err)
-		} else {
-			fmt.Printf("Function %d result: %v\n", i+1, result.Val)
-		}
+	results, err := parallelWithResult[A](ParallelWithResult1, ParallelWithResult2, ParallelWithResult3)
+	if err != nil {
+		fmt.Println(err)
+	}
+	for i, v := range results {
+		fmt.Printf("Function %d result: %v\n", i+1, v)
 	}
 	time.Sleep(time.Second * 1111)
 }

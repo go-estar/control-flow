@@ -5,47 +5,56 @@ import (
 	"fmt"
 )
 
-func NewParallelWithResult[T any](funcs ...func() *Result[T]) *ParallelWithResult[T] {
+func NewParallelWithResult[T any](funcs ...func() (*T, error)) *ParallelWithResult[T] {
 	return &ParallelWithResult[T]{
 		funcs: funcs,
 	}
 }
 
-type Result[T any] struct {
-	Val T
+type result[T any] struct {
+	Val *T
 	Err error
 }
 
 type ParallelWithResult[T any] struct {
-	funcs []func() *Result[T]
+	funcs []func() (*T, error)
 }
 
-func (pt *ParallelWithResult[T]) Add(funcs ...func() *Result[T]) {
+func (pt *ParallelWithResult[T]) Add(funcs ...func() (*T, error)) {
 	pt.funcs = append(pt.funcs, funcs...)
 }
 
-func (pt *ParallelWithResult[T]) Run() []*Result[T] {
+func (pt *ParallelWithResult[T]) Run() ([]*T, error) {
 	return parallelWithResult[T](pt.funcs...)
 }
 
-func parallelWithResult[T any](funcs ...func() *Result[T]) []*Result[T] {
-	var ch = make(chan *Result[T], len(funcs))
+func parallelWithResult[T any](funcs ...func() (*T, error)) ([]*T, error) {
+	var ch = make(chan *result[T], len(funcs))
 	defer close(ch)
 	for _, fn := range funcs {
-		go func(f func() *Result[T]) {
+		go func(f func() (*T, error)) {
 			defer func() {
 				if e := recover(); e != nil {
-					ch <- &Result[T]{
+					ch <- &result[T]{
 						Err: errors.New(fmt.Sprintf("%v", e)),
 					}
 				}
 			}()
-			ch <- f()
+			r, err := f()
+			ch <- &result[T]{
+				Val: r,
+				Err: err,
+			}
 		}(fn)
 	}
-	var results []*Result[T]
+	var results []*T
+	var errs []error
 	for i := 0; i < len(funcs); i++ {
-		results = append(results, <-ch)
+		r := <-ch
+		if r.Err != nil {
+			errs = append(errs, r.Err)
+		}
+		results = append(results, r.Val)
 	}
-	return results
+	return results, errors.Join(errs...)
 }
